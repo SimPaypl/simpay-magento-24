@@ -49,7 +49,7 @@
 
                 <field id="api_password"
                        translate="label"
-                       type="obscure"
+                       type="text"
                        sortOrder="40"
                        showInDefault="1"
                        showInWebsite="1"
@@ -78,7 +78,7 @@
                        showInStore="1">
                     <label>IPN check IP</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                    <comment>Enable IP validation for IPN callbacks</comment>
+                    <comment>Enable IP validation for IPN callbacks. We do not recommend if your shop using CloudFlare.</comment>
                 </field>
 
                 <field id="webhook_url"

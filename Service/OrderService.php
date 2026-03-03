@@ -15,7 +15,7 @@ use Magento\Framework\Exception\LocalizedException;
 class OrderService
 {
     private const STATUS_PAID    = 'transaction_paid';
-    private const STATUS_FAILED  = ['transaction_expired', 'transaction_failed', 'transaction_canceled'];
+    private const STATUS_FAILED  = ['transaction_expired', 'transaction_failure', 'transaction_canceled'];
 
     public function __construct(
         private readonly OrderRepositoryInterface $orderRepository,
