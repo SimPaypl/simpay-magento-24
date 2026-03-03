@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <payment>
+            <simpay_magento>
+                <active>0</active>
+                <sort_order>1</sort_order>
+                <model>SimPayPaymentFacade</model>
+                <order_status>pending_payment</order_status>
+                <title>SimPay</title>
+                <can_use_checkout>1</can_use_checkout>
+                <payment_action>order</payment_action>
+                <can_order>1</can_order>
+                <can_authorize>0</can_authorize>
+                <can_capture>0</can_capture>
+                <is_gateway>1</is_gateway>
+            </simpay_magento>
+        </payment>
+    </default>
+</config>

@@ -1,0 +1,13 @@
+.simpay-label, .simpay-logo, .simpay-title {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.simpay-logo {
+    height: 23px;
+    margin: 0 10px;
+}
+
+.simpay-logo {
+    height: 35px;
+}

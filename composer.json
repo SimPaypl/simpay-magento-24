@@ -1,0 +1,26 @@
+{
+  "name": "simpay/magento24-payment",
+  "description": "SimPay payment gateway for Magento 2",
+  "type": "magento2-module",
+  "version": "1.0.0",
+  "license": "apache-2.0",
+  "require": {
+    "php": ">=7.4",
+    "ext-json": "*",
+    "magento/module-sales": "*"
+  },
+  "autoload": {
+    "files": [
+      "registration.php"
+    ],
+    "psr-4": {
+      "SimPay\\Magento\\": ""
+    }
+  },
+  "authors": [
+    {
+      "name": "Payments Solution Sp. z o.o.",
+      "homepage": "https://simpay.pl/"
+    }
+  ]
+}
