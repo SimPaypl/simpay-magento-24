@@ -1,0 +1,50 @@
+name: Create release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to create"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  create_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Check .version
+        run: |
+          if [ $(grep "${{ github.event.inputs.version }}" .version -c) != 1 ]; then
+            echo "Version not found in .version"
+            exit 1
+          fi
+
+      - name: Check CHANGELOG
+        run: |
+          if [ $(grep "${{ github.event.inputs.version }}" CHANGELOG.md -c) != 1 ]; then
+            echo "Version not found in CHANGELOG.md"
+            exit 1
+          fi
+
+      - name: Extract changelog section
+        run: |
+          VERSION=${{ github.event.inputs.version }}
+          awk "/^##.*${VERSION}/,/^## /" CHANGELOG.md | sed '$d' > RELEASE_CHANGELOG.md
+
+      - name: Create zip
+        run: |
+          git archive --output=simpay-magento2-basic.zip HEAD
+
+      - name: Create Github release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+          bodyFile: RELEASE_CHANGELOG.md
+          artifacts: simpay-magento-24.zip
