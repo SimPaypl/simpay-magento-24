@@ -43,15 +43,8 @@ Moduł umożliwia:
 
 ## Instalacja
 
-1. Pobierz najnowszą wersję modułu z repozytorium GitHub.
-2. Rozpakuj archiwum.
-3. Skopiuj zawartość do katalogu:
 ```bash
-app/code/SimPay/Magento 
-```
->Jeżeli katalog nie istnieje — utwórz go.
-4. Uruchom komendy:
-```bash
+composer require simpay/magento24-payment
 php bin/magento module:enable SimPay_Magento
 php bin/magento setup:upgrade
 php bin/magento setup:di:compile

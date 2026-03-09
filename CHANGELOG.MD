@@ -11,3 +11,8 @@ and this project adheres to Semantic Versioning.
 - Initial release.
 
 ---
+
+## 1.0.1
+- Update README and composer requirements.
+
+---
