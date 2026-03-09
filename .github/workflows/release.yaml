@@ -39,7 +39,7 @@ jobs:
 
       - name: Create zip
         run: |
-          git archive --output=simpay-magento2-basic.zip HEAD
+          git archive --output=simpay-magento-24.zip HEAD
 
       - name: Create Github release
         uses: ncipollo/release-action@v1
