@@ -8,7 +8,8 @@ The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
 ## 1.0.2
-- Update README and composer requirements.
+- Add translations.
+- Add Twisto data to payment request for future integration.
 
 ---
 
