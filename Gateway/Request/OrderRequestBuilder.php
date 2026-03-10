@@ -12,6 +12,9 @@ use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Model\Order\Address;
 use Psr\Log\LoggerInterface;
 use SimPay\Magento\Model\Config;
+use Magento\Customer\Model\CustomerFactory;
+use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
+use Magento\Store\Model\StoreManagerInterface;
 
 class OrderRequestBuilder implements BuilderInterface
 {
@@ -19,7 +22,10 @@ class OrderRequestBuilder implements BuilderInterface
         private readonly UrlInterface $urlBuilder,
         private readonly Config $config,
         private readonly Request $request,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly CustomerFactory $customerFactory,
+        private readonly OrderCollectionFactory $orderCollectionFactory,
+        private readonly StoreManagerInterface $storeManager
     ) {
     }
 
@@ -42,6 +48,17 @@ class OrderRequestBuilder implements BuilderInterface
         $returnUrl = $this->urlBuilder->getUrl('checkout/onepage/success', ['_secure' => true]);
         $this->logger->alert('SimPay request builder end', [
         ]);
+
+        $context = [];
+
+        if ((int) $order->getCustomerId() > 0) {
+            $context = $this->buildTwistoContext(
+                (string) $order->getCurrencyCode(),
+                (string) $order->getOrderIncrementId(),
+                $customer['email']
+            );
+        }
+
         return [
             'amount' => (float) $order->getGrandTotalAmount(),
             'currency' => (string) $order->getCurrencyCode(),
@@ -62,11 +79,104 @@ class OrderRequestBuilder implements BuilderInterface
             'billing' => $this->mapAddress($billing),
             'shipping' => $this->mapAddress($shipping),
 
+            'context' => $context,
+
             'returns' => [
                 'success' => $returnUrl,
                 'failure' => $returnUrl,
             ],
         ];
+    }
+
+    private function buildTwistoContext(string $currency, string $currentIncrementId, string $email): array
+    {
+        $context = [
+            'accountSetCurrency' => $currency,
+        ];
+
+        if ($email === '') {
+            return $context;
+        }
+
+        $store = $this->storeManager->getStore();
+        $websiteId = (int) $store->getWebsiteId();
+
+        // Try to load Magento customer by email
+        $customer = $this->customerFactory->create()
+            ->setWebsiteId($websiteId)
+            ->loadByEmail($email);
+
+        if ($customer->getId() && $customer->getCreatedAt()) {
+            try {
+                $context['accountCreatedAt'] = (new \DateTimeImmutable((string) $customer->getCreatedAt()))
+                    ->format(\DateTimeInterface::ATOM);
+            } catch (\Throwable) {
+                // Ignore invalid date format
+            }
+        }
+
+        $stats = $this->collectCustomerStats($email, $currentIncrementId);
+
+        $context['salesTotalCount'] = $stats['salesTotalCount'];
+        $context['salesTotalAmount'] = $this->formatDecimal($stats['salesTotalAmount']);
+        $context['salesAvgAmount'] = $this->formatDecimal($stats['salesAvgAmount']);
+        $context['salesMaxAmount'] = $this->formatDecimal($stats['salesMaxAmount']);
+        $context['refundsTotalAmount'] = $this->formatDecimal($stats['refundsTotalAmount']);
+        $context['hasPreviousPurchases'] = $stats['salesTotalCount'] > 0;
+
+        return $context;
+    }
+
+    private function collectCustomerStats(string $email, string $currentIncrementId): array
+    {
+        $collection = $this->orderCollectionFactory->create();
+
+        $collection->addFieldToSelect([
+            'increment_id',
+            'grand_total',
+            'total_refunded',
+            'state',
+            'customer_email',
+        ]);
+
+        $collection->addFieldToFilter('customer_email', $email);
+        $collection->addFieldToFilter('increment_id', ['neq' => $currentIncrementId]);
+        $collection->addFieldToFilter('state', ['in' => ['processing', 'complete', 'closed']]);
+
+        $salesTotalCount = 0;
+        $salesTotalAmount = 0.0;
+        $salesMaxAmount = 0.0;
+        $refundsTotalAmount = 0.0;
+
+        foreach ($collection as $historicalOrder) {
+            $amount = (float) $historicalOrder->getGrandTotal();
+            $refunded = (float) $historicalOrder->getTotalRefunded();
+
+            $salesTotalCount++;
+            $salesTotalAmount += $amount;
+            $refundsTotalAmount += $refunded;
+
+            if ($amount > $salesMaxAmount) {
+                $salesMaxAmount = $amount;
+            }
+        }
+
+        $salesAvgAmount = $salesTotalCount > 0
+            ? $salesTotalAmount / $salesTotalCount
+            : 0.0;
+
+        return [
+            'salesTotalCount' => $salesTotalCount,
+            'salesTotalAmount' => $salesTotalAmount,
+            'salesAvgAmount' => $salesAvgAmount,
+            'salesMaxAmount' => $salesMaxAmount,
+            'refundsTotalAmount' => $refundsTotalAmount,
+        ];
+    }
+
+    private function formatDecimal(float $value): string
+    {
+        return number_format($value, 2, '.', '');
     }
 
     private function mapAddress($address): array
