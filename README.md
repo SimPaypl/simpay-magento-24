@@ -52,7 +52,7 @@ php bin/magento setup:static-content:deploy
 php bin/magento cache:flush
 ```
 
-## ⚙️ Konfiguracja
+## Konfiguracja
 
 1. Przejdź do:
 

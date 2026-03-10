@@ -45,7 +45,7 @@ class OrderRequestBuilder implements BuilderInterface
         return [
             'amount' => (float) $order->getGrandTotalAmount(),
             'currency' => (string) $order->getCurrencyCode(),
-            'description' => sprintf('Order #%s', (string) $order->getOrderIncrementId()),
+            'description' => __('Order #%1', $order->getOrderIncrementId()),
             'control' => (string) $order->getOrderIncrementId(),
 
             // customer

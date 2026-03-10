@@ -37,7 +37,7 @@
                 </field>
 
                 <field id="service_id"
-                       translate="label"
+                       translate="label comment"
                        type="text"
                        sortOrder="30"
                        showInDefault="1"
@@ -48,7 +48,7 @@
                 </field>
 
                 <field id="api_password"
-                       translate="label"
+                       translate="label comment"
                        type="text"
                        sortOrder="40"
                        showInDefault="1"
@@ -59,7 +59,7 @@
                 </field>
 
                 <field id="ipn_signature_key"
-                       translate="label"
+                       translate="label comment"
                        type="text"
                        sortOrder="50"
                        showInDefault="1"
@@ -70,7 +70,7 @@
                 </field>
 
                 <field id="ipn_check_ip"
-                       translate="label"
+                       translate="label comment"
                        type="select"
                        sortOrder="55"
                        showInDefault="1"
@@ -82,15 +82,15 @@
                 </field>
 
                 <field id="webhook_url"
-                       translate="label"
+                       translate="label comment"
                        type="note"
                        sortOrder="60"
                        showInDefault="1"
                        showInWebsite="1"
                        showInStore="1">
-                    <label>Webhook url</label>
+                    <label>Webhook URL</label>
                     <frontend_model>SimPay\Magento\Block\Adminhtml\System\Config\WebhookUrl</frontend_model>
-                    <comment>Set this URL in SimPay panel as webhook/notification URL</comment>
+                    <comment>Set this URL in SimPay panel as webhook/notification URL.</comment>
                 </field>
 
             </group>
