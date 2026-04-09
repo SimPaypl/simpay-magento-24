@@ -10,6 +10,8 @@ use SimPay\Magento\Model\Ui\ConfigProvider;
 
 class Config
 {
+    public const SUPPORTED_CURRENCY = 'PLN';
+
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig
     ) {
@@ -58,5 +60,15 @@ class Config
             ScopeInterface::SCOPE_STORE,
             $storeId
         );
+    }
+
+    public function getSupportedCurrency(): string
+    {
+        return self::SUPPORTED_CURRENCY;
+    }
+
+    public function isCurrencySupported(string $currencyCode): bool
+    {
+        return strtoupper(trim($currencyCode)) === self::SUPPORTED_CURRENCY;
     }
 }

@@ -9,17 +9,20 @@ use Magento\Sales\Model\Order;
 use Magento\Sales\Model\OrderFactory;
 use Magento\Sales\Api\OrderRepositoryInterface;
 use Psr\Log\LoggerInterface;
-use Magento\Sales\Model\Order\Invoice;
-use Magento\Framework\Exception\LocalizedException;
+use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
 
 class OrderService
 {
     private const STATUS_PAID    = 'transaction_paid';
     private const STATUS_FAILED  = ['transaction_expired', 'transaction_failure', 'transaction_canceled'];
+    private const REFUND_PENDING = ['refund_new', 'refund_pending'];
+    private const REFUND_SUCCESS = ['refund_completed'];
+    private const REFUND_FAILED = ['refund_failed', 'refund_rejected'];
 
     public function __construct(
         private readonly OrderRepositoryInterface $orderRepository,
         private readonly OrderFactory $orderFactory,
+        private readonly OrderCollectionFactory $orderCollectionFactory,
         private readonly TransactionFactory $transactionFactory,
         private readonly LoggerInterface $logger
     ) {}
@@ -98,40 +101,23 @@ class OrderService
                 );
             }
 
-            // Create invoice + capture
-            if ($order->canInvoice()) {
-                $invoice = $order->prepareInvoice();
-                if (!$invoice || !$invoice->getTotalQty()) {
-                    throw new \RuntimeException('Cannot create invoice (empty qty).');
-                }
+            // Let Magento register capture/invoice through payment notification API.
+            $captureAmount = $paidAmount > 0 ? $paidAmount : $orderTotal;
+            $payment->setIsTransactionClosed(false);
+            $payment->setShouldCloseParentTransaction(true);
+            $payment->registerCaptureNotification($captureAmount, true);
 
-                $invoice->setTransactionId($transactionId);
-                $invoice->setRequestedCaptureCase(Invoice::CAPTURE_ONLINE);
-                $invoice->register();
+            // Mark as applied (idempotency anchor)
+            $payment->setAdditionalInformation('simpay_paid_applied', 1);
 
-                // Close payment transaction after capture
-                $payment->setIsTransactionClosed(true);
+            $order->addCommentToStatusHistory(
+                sprintf('SimPay: capture notification registered (IPN). Transaction: %s', $transactionId)
+            )->setIsCustomerNotified(false);
 
-                // Mark as applied (idempotency anchor)
-                $payment->setAdditionalInformation('simpay_paid_applied', 1);
-
-                $order->addCommentToStatusHistory(
-                    sprintf('SimPay: payment captured (IPN). Transaction: %s', $transactionId)
-                )->setIsCustomerNotified(false);
-
-                $transaction = $this->transactionFactory->create();
-                $transaction->addObject($invoice);
-                $transaction->addObject($order);
-                $transaction->save();
-            } else {
-                // Do NOT mark as applied if we couldn't invoice
-                $order->addCommentToStatusHistory(
-                    sprintf('SimPay: payment confirmed by IPN, but order cannot be invoiced. Transaction: %s', $transactionId)
-                )->setIsCustomerNotified(false);
-
-                $this->orderRepository->save($order);
-                return;
-            }
+            $transaction = $this->transactionFactory->create();
+            $transaction->addObject($payment);
+            $transaction->addObject($order);
+            $transaction->save();
 
             // Store gateway info (after applying payment)
             $payment->setAdditionalInformation('simpay_transaction_id', $transactionId);
@@ -183,11 +169,110 @@ class OrderService
         $this->logger->info('SimPay IPN test notification');
     }
 
+    public function handleRefundStatusChanged(array $data): void
+    {
+        $status = (string) ($data['status'] ?? '');
+        $refundId = (string) ($data['id'] ?? ($data['refund_id'] ?? ''));
+        $control = (string) ($data['control'] ?? '');
+        $transactionId = (string) ($data['transaction']['id'] ?? ($data['transaction_id'] ?? ''));
+        $refundAmount = (string) ($data['amount']['value'] ?? '');
+
+        $order = null;
+        if ($control !== '') {
+            $order = $this->loadOrderByIncrementId($control);
+        }
+
+        if (!$order && $transactionId !== '') {
+            $order = $this->loadOrderByTransactionId($transactionId);
+        }
+
+        if (!$order) {
+            throw new \RuntimeException(sprintf(
+                'Order not found for refund notification (control: %s, transaction_id: %s).',
+                $control !== '' ? $control : 'N/A',
+                $transactionId !== '' ? $transactionId : 'N/A'
+            ));
+        }
+
+        $payment = $order->getPayment();
+        if (!$payment) {
+            throw new \RuntimeException('Order has no payment object.');
+        }
+
+        if ($refundId === '') {
+            throw new \RuntimeException('Missing refund id in refund notification payload.');
+        }
+
+        $refunds = $payment->getAdditionalInformation('simpay_refunds');
+        if (!is_array($refunds)) {
+            $refunds = [];
+        }
+
+        $mappedStatus = $status;
+        if (in_array($status, self::REFUND_PENDING, true)) {
+            $mappedStatus = 'pending';
+        } elseif (in_array($status, self::REFUND_SUCCESS, true)) {
+            $mappedStatus = 'completed';
+        } elseif (in_array($status, self::REFUND_FAILED, true)) {
+            $mappedStatus = 'failed';
+        }
+
+        $refunds[$refundId] = array_merge(
+            is_array($refunds[$refundId] ?? null) ? $refunds[$refundId] : [],
+            [
+                'refund_id' => $refundId,
+                'status' => $mappedStatus,
+                'ipn_status' => $status,
+                'transaction_id' => $transactionId,
+                'amount' => $refundAmount,
+                'updated_at' => gmdate(DATE_ATOM),
+            ]
+        );
+
+        $payment->setAdditionalInformation('simpay_refunds', $refunds);
+        $payment->setAdditionalInformation('simpay_last_refund_status', $mappedStatus);
+
+        $order->addCommentToStatusHistory(sprintf(
+            'SimPay: refund status changed (IPN): %s%s%s%s',
+            $status !== '' ? $status : 'unknown',
+            $refundId !== '' ? ' [refund_id: ' . $refundId . ']' : '',
+            $transactionId !== '' ? ' [transaction_id: ' . $transactionId . ']' : '',
+            $refundAmount !== '' ? ' [amount: ' . $refundAmount . ']' : ''
+        ))->setIsCustomerNotified(false);
+
+        $this->orderRepository->save($order);
+    }
+
     private function loadOrderByIncrementId(string $incrementId): ?Order
     {
         $order = $this->orderFactory->create();
         $order->loadByIncrementId($incrementId);
 
         return $order->getEntityId() ? $order : null;
+    }
+
+    private function loadOrderByTransactionId(string $transactionId): ?Order
+    {
+        if ($transactionId === '') {
+            return null;
+        }
+
+        $collection = $this->orderCollectionFactory->create();
+        $paymentTable = $collection->getTable('sales_order_payment');
+
+        $collection->getSelect()
+            ->join(
+                ['payment' => $paymentTable],
+                'payment.parent_id = main_table.entity_id',
+                []
+            )
+            ->where('payment.last_trans_id = ?', $transactionId)
+            ->orWhere('payment.transaction_id = ?', $transactionId)
+            ->orWhere('payment.additional_information LIKE ?', '%' . $transactionId . '%');
+
+        $collection->setPageSize(1);
+        $order = $collection->getFirstItem();
+
+        return $order && $order->getEntityId() ? $order : null;
     }
 }

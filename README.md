@@ -24,6 +24,7 @@ Moduł umożliwia:
 - Przekierowanie klienta do bramki płatności
 - Obsługę notyfikacji IPN (webhook)
 - Automatyczną zmianę statusów zamówień
+- Zwroty online z poziomu Credit Memo (refund API)
 - Opcjonalną walidację adresu IP notyfikacji
 ---
 
@@ -38,6 +39,15 @@ Moduł umożliwia:
     - sprawdza `service_id`,
     - porównuje kwotę,
     - aktualizuje status zamówienia.
+
+## Zwroty online
+
+- Zwrot uruchamiany jest z panelu Magento przez **Credit Memo -> Refund Online**.
+- Moduł wywołuje endpoint SimPay: `POST /payment/{serviceId}/transactions/{transactionId}/refunds`.
+- `transactionId` pobierane jest z `payment.additional_information[simpay_transaction_id]` (fallback: `last_trans_id`).
+- Pole `amount` w request body jest opcjonalne: brak `amount` oznacza zwrot pełny, podanie `amount` oznacza zwrot częściowy.
+- `refund_id` i statusy zwrotów są zapisywane w `additional_information` płatności.
+- Finalny status zwrotu jest aktualizowany przez IPN.
 
 ---
 
@@ -74,4 +84,3 @@ php bin/magento cache:flush
 
 > **Uwaga:** Adres webhook jest wymagany do poprawnego działania modułu. Skopiuj go i ustaw w panelu SimPay w konfiguracji usługi.
 ---
-

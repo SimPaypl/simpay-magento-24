@@ -17,8 +17,7 @@ class ConfigProvider implements ConfigProviderInterface
         private readonly UrlInterface $urlBuilder,
         private readonly ScopeConfigInterface $scopeConfig
     )
-    {
-    }
+    {}
 
     public function getConfig(): array
     {
@@ -36,7 +35,7 @@ class ConfigProvider implements ConfigProviderInterface
         return [
             'payment' => [
                 self::CODE => [
-                    'title' => $title ?: 'SimPay',
+                    'title' => $title !== '' ? $title : __('Pay with SimPay'),
                     'redirectUrl' => $this->urlBuilder->getUrl('simpay/redirect/index', ['_secure' => true]),
                     'isActive' => $isActive,
                 ],

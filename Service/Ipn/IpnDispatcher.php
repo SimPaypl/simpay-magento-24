@@ -26,6 +26,10 @@ class IpnDispatcher
                 $this->orderService->handleTransactionStatusChanged($data);
                 return;
 
+            case 'transaction_refund:status_changed':
+                $this->orderService->handleRefundStatusChanged($data);
+                return;
+
             case 'ipn:test':
                 $this->orderService->handleTestNotification();
                 return;

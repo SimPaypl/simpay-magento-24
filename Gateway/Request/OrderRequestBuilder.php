@@ -37,6 +37,15 @@ class OrderRequestBuilder implements BuilderInterface
 
         $paymentDO = SubjectReader::readPayment($buildSubject);
         $order = $paymentDO->getOrder();
+        $orderCurrencyCode = strtoupper((string) $order->getCurrencyCode());
+
+        if (!$this->config->isCurrencySupported($orderCurrencyCode)) {
+            throw new \RuntimeException(sprintf(
+                'SimPay supports only %s currency. Current order currency: %s.',
+                $this->config->getSupportedCurrency(),
+                $orderCurrencyCode !== '' ? $orderCurrencyCode : 'N/A'
+            ));
+        }
 
         $billing = $order->getBillingAddress();
         $shipping = $order->getShippingAddress();
@@ -53,7 +62,6 @@ class OrderRequestBuilder implements BuilderInterface
 
         if ((int) $order->getCustomerId() > 0) {
             $context = $this->buildTwistoContext(
-                (string) $order->getCurrencyCode(),
                 (string) $order->getOrderIncrementId(),
                 $customer['email']
             );
@@ -61,7 +69,6 @@ class OrderRequestBuilder implements BuilderInterface
 
         return [
             'amount' => (float) $order->getGrandTotalAmount(),
-            'currency' => (string) $order->getCurrencyCode(),
             'description' => __('Order #%1', $order->getOrderIncrementId()),
             'control' => (string) $order->getOrderIncrementId(),
 
@@ -88,11 +95,9 @@ class OrderRequestBuilder implements BuilderInterface
         ];
     }
 
-    private function buildTwistoContext(string $currency, string $currentIncrementId, string $email): array
+    private function buildTwistoContext(string $currentIncrementId, string $email): array
     {
-        $context = [
-            'accountSetCurrency' => $currency,
-        ];
+        $context = [];
 
         if ($email === '') {
             return $context;

@@ -24,8 +24,7 @@ class Client implements ClientInterface
     public function placeRequest(TransferInterface $transferObject): array
     {
         // SimPay API request
-        $this->logger->alert('SimPay request start', [
-
+        $this->logger->debug('SimPay request start', [
         ]);
 
         $bearerToken = (string) $this->config->getBearerToken();
@@ -54,6 +53,8 @@ class Client implements ClientInterface
         $headers = array_merge(
             $headers,
             [
+                'Accept' => 'application/json; charset=utf-8',
+                'Content-Type' => 'application/json; charset=utf-8',
                 'Authorization' => 'Bearer ' . $bearerToken,
             ]
         );
@@ -67,7 +68,7 @@ class Client implements ClientInterface
 
             $this->curl->setTimeout($timeout);
 
-            $payload = $this->json->serialize($body);
+            $payload = $body === [] ? '{}' : $this->json->serialize($body);
 
             // MVP: we mainly need POST. Add GET support for future.
             if ($method === 'GET') {
@@ -77,7 +78,7 @@ class Client implements ClientInterface
                 $this->curl->post($uri, $payload);
             }
 
-            $this->logger->alert('SimPay request payload', [
+            $this->logger->debug('SimPay request payload', [
                 'method' => $method,
                 'uri' => $uri,
                 'payload' => $payload,

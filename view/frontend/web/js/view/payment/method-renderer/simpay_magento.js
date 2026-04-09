@@ -19,6 +19,11 @@ define([
             return 'simpay_magento';
         },
 
+        // Backward-compat fallback for older template versions.
+        isBillingAddressRequired: function () {
+            return true;
+        },
+
         afterPlaceOrder: function () {
             var cfg = (window.checkoutConfig && window.checkoutConfig.payment) || {};
             var redirectUrl = (cfg[this.getCode()] && cfg[this.getCode()].redirectUrl) || '';
