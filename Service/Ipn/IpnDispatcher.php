@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace SimPay\Magento\Service\Ipn;
 
 use SimPay\Magento\Service\OrderService;
+use SimPay\SDK\IpnPayload;
+use SimPay\SDK\PaymentStatus;
 
 class IpnDispatcher
 {
@@ -12,22 +14,15 @@ class IpnDispatcher
         private readonly OrderService $orderService
     ) {}
 
-    public function dispatch(array $payload): void
+    public function dispatch(IpnPayload $ipn): void
     {
-        $type = (string)($payload['type'] ?? '');
-        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-
-        if ($type === '') {
-            throw new \RuntimeException('Missing event type');
-        }
-
-        switch ($type) {
-            case 'transaction:status_changed':
-                $this->orderService->handleTransactionStatusChanged($data);
+        switch ($ipn->type) {
+            case PaymentStatus::TYPE_TRANSACTION_STATUS:
+                $this->orderService->handleTransactionStatusChanged($ipn->data);
                 return;
 
-            case 'transaction_refund:status_changed':
-                $this->orderService->handleRefundStatusChanged($data);
+            case PaymentStatus::TYPE_REFUND_STATUS:
+                $this->orderService->handleRefundStatusChanged($ipn->data);
                 return;
 
             case 'ipn:test':
@@ -35,7 +30,7 @@ class IpnDispatcher
                 return;
 
             default:
-                throw new \RuntimeException('Unknown event type: ' . $type);
+                throw new \RuntimeException('Unknown event type: ' . $ipn->type);
         }
     }
 }

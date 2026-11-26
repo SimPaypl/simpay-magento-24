@@ -1,0 +1,163 @@
+<?php
+/**
+ * @var \SimPay\Magento\Block\Adminhtml\System\Config\OAuthConnect $block
+ * @var \Magento\Framework\Escaper $escaper
+ * @var \Magento\Framework\View\Helper\SecureHtmlRenderer $secureRenderer
+ */
+
+$pending = $block->getPendingConnection();
+$uid = 'simpay-oauth-' . uniqid();
+?>
+<div id="<?= $escaper->escapeHtmlAttr($uid) ?>" class="simpay-oauth">
+    <?php if ($pending !== null): ?>
+        <?php $suggested = $block->getSuggestedServiceId($pending); ?>
+        <div class="simpay-oauth-picker" style="border: 1px solid #007bdb; padding: 15px 20px; margin-bottom: 15px;">
+            <strong style="display: block; font-size: 1.4rem; margin-bottom: 10px;">
+                <?= $escaper->escapeHtml(__('Select a SimPay payment service')) ?>
+            </strong>
+            <?php if ($pending->accountEmail !== ''): ?>
+                <p>
+                    <?= $escaper->escapeHtml(__('Connected SimPay account:')) ?>
+                    <strong><?= $escaper->escapeHtml($pending->accountEmail) ?></strong>
+                </p>
+            <?php endif; ?>
+            <p><?= $escaper->escapeHtml(__('Choose the payment service this shop should use:')) ?></p>
+
+            <?php foreach ($pending->services as $service): ?>
+                <?php $inputId = $uid . '-service-' . $service->id; ?>
+                <div style="margin-bottom: 8px;">
+                    <input type="radio" class="admin__control-radio" name="simpay_oauth_service_id"
+                           id="<?= $escaper->escapeHtmlAttr($inputId) ?>"
+                           value="<?= $escaper->escapeHtmlAttr($service->id) ?>"
+                           <?= $service->id === $suggested ? 'checked="checked"' : '' ?> />
+                    <label class="admin__field-label" for="<?= $escaper->escapeHtmlAttr($inputId) ?>">
+                        <strong><?= $escaper->escapeHtml($service->getDisplayName()) ?></strong>
+                        <span style="color: #777;">
+                            &middot; ID: <?= $escaper->escapeHtml($service->id) ?>
+                            <?php if ($service->url !== ''): ?>&middot; <?= $escaper->escapeHtml($service->url) ?><?php endif; ?>
+                        </span>
+                    </label>
+                </div>
+            <?php endforeach; ?>
+
+            <div class="message message-warning" style="margin: 15px 0;">
+                <?= $escaper->escapeHtml(__('The module will create a new API key, set the IPN URL and generate a new IPN signature key for the selected service. The previous IPN signature key will stop working immediately - if this service is also used by another shop or integration, update it there as well.')) ?>
+            </div>
+
+            <button type="button" class="action-primary" data-simpay-action="provision">
+                <span><?= $escaper->escapeHtml(__('Connect selected service')) ?></span>
+            </button>
+            <a href="<?= $escaper->escapeUrl($block->getCancelUrl()) ?>" class="action-default" style="margin-left: 10px;">
+                <?= $escaper->escapeHtml(__('Cancel')) ?>
+            </a>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($block->isConnected()): ?>
+        <div class="message message-success" style="margin-bottom: 15px;">
+            <strong><?= $escaper->escapeHtml(__('Your shop is connected to SimPay.')) ?></strong>
+            <?php if ($block->getAccountEmail() !== ''): ?>
+                <br><?= $escaper->escapeHtml(__('Account:')) ?> <?= $escaper->escapeHtml($block->getAccountEmail()) ?>
+            <?php endif; ?>
+            <br><?= $escaper->escapeHtml(__('Payment service:')) ?>
+            <?= $escaper->escapeHtml($block->getServiceName() !== '' ? $block->getServiceName() : $block->getServiceId()) ?>
+            (ID: <?= $escaper->escapeHtml($block->getServiceId()) ?>)
+        </div>
+    <?php elseif ($pending === null): ?>
+        <p class="note" style="margin-bottom: 15px;">
+            <?= $escaper->escapeHtml(__('Log in to your SimPay account and grant access - the module will automatically create an API key, set the IPN URL and configure the IPN signature key. No copying of keys required.')) ?>
+        </p>
+    <?php endif; ?>
+
+    <?php if (!$block->isHttpsOk()): ?>
+        <div class="message message-warning" style="margin-bottom: 15px;">
+            <?= $escaper->escapeHtml(__('Connecting via SimPay requires the Magento admin panel to be served over HTTPS. Enter the credentials manually instead.')) ?>
+            <br><small><?= $escaper->escapeHtml(__('Detected callback URL:')) ?> <code><?= $escaper->escapeHtml($block->getRedirectUri()) ?></code></small>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($pending === null): ?>
+        <?php if ($block->isHttpsOk()): ?>
+            <a href="<?= $escaper->escapeUrl($block->getConnectUrl()) ?>"
+               class="<?= $block->isConnected() ? 'action-default' : 'action-primary' ?>">
+                <?= $escaper->escapeHtml($block->isConnected() ? __('Reconnect / change service') : __('Connect with SimPay')) ?>
+            </a>
+        <?php endif; ?>
+        <?php if ($block->isConnected()): ?>
+            <button type="button" class="action-default" data-simpay-action="disconnect" style="margin-left: 10px;">
+                <span><?= $escaper->escapeHtml(__('Disconnect')) ?></span>
+            </button>
+        <?php endif; ?>
+    <?php endif; ?>
+</div>
+<?php
+$jsConfig = [
+    'rootId' => $uid,
+    'authMethodId' => $block->getAuthMethodHtmlId(),
+    'pending' => $pending !== null,
+    'formKey' => $block->getFormKey(),
+    'provisionUrl' => $block->getProvisionUrl(),
+    'disconnectUrl' => $block->getDisconnectUrl(),
+    'disconnectParams' => $block->getDisconnectParams(),
+    'selectServiceMessage' => (string) __('Please select a payment service.'),
+    'disconnectConfirm' => (string) __('Are you sure you want to disconnect the shop from SimPay? SimPay payments will stop working until you connect again.'),
+];
+$script = <<<JS
+(function (cfg) {
+    var root = document.getElementById(cfg.rootId);
+    if (!root) {
+        return;
+    }
+
+    // the picker lives in the OAuth panel - make sure it is visible even if "manual" is selected
+    if (cfg.pending) {
+        var select = document.getElementById(cfg.authMethodId);
+        if (select && select.value !== 'oauth') {
+            select.value = 'oauth';
+            select.dispatchEvent(new Event('change', {bubbles: true}));
+        }
+    }
+
+    // separate POST forms - they cannot be nested in the configuration form
+    function post(url, params) {
+        var form = document.createElement('form');
+        form.method = 'post';
+        form.action = url;
+        params.form_key = cfg.formKey;
+        Object.keys(params).forEach(function (name) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = params[name];
+            form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    root.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-simpay-action]');
+        if (!button) {
+            return;
+        }
+        event.preventDefault();
+
+        if (button.getAttribute('data-simpay-action') === 'provision') {
+            var checked = root.querySelector('input[name="simpay_oauth_service_id"]:checked');
+            if (!checked) {
+                alert(cfg.selectServiceMessage);
+                return;
+            }
+            button.disabled = true;
+            post(cfg.provisionUrl, {service_id: checked.value});
+        }
+
+        if (button.getAttribute('data-simpay-action') === 'disconnect' && confirm(cfg.disconnectConfirm)) {
+            post(cfg.disconnectUrl, Object.assign({}, cfg.disconnectParams));
+        }
+    });
+})(
+JS;
+$script .= json_encode($jsConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) . ');';
+?>
+<?= /* @noEscape */ $secureRenderer->renderTag('script', [], $script, false) ?>

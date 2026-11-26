@@ -14,9 +14,8 @@ use Magento\Framework\Controller\Result\RawFactory;
 use Magento\Framework\Serialize\Serializer\Json;
 use Psr\Log\LoggerInterface;
 use SimPay\Magento\Model\Config;
-use SimPay\Magento\Service\IpAllowlistService;
+use SimPay\Magento\Model\SimPayFactory;
 use SimPay\Magento\Service\Ipn\IpnDispatcher;
-use SimPay\Magento\Service\Ipn\IpnValidator;
 
 class Index extends Action implements CsrfAwareActionInterface
 {
@@ -26,9 +25,8 @@ class Index extends Action implements CsrfAwareActionInterface
         private readonly Json $json,
         private readonly LoggerInterface $logger,
         private readonly Config $config,
-        private readonly IpnValidator $validator,
-        private readonly IpnDispatcher $dispatcher,
-        private readonly IpAllowlistService $ipAllowlistService
+        private readonly SimPayFactory $simPayFactory,
+        private readonly IpnDispatcher $dispatcher
     ) {
         parent::__construct($context);
     }
@@ -38,20 +36,8 @@ class Index extends Action implements CsrfAwareActionInterface
         $result = $this->resultRawFactory->create();
 
         try {
-            // Basic config presence check
-            $serviceId = (string)$this->config->getServiceId();
-            $ipnKey = (string)$this->config->getIpnSignatureKey();
-
-            if ($serviceId === '' || $ipnKey === '') {
+            if ($this->config->getServiceId() === '' || $this->config->getIpnSignatureKey() === '') {
                 return $this->badRequest($result, 'Missing API configuration (service_id / ipn key).');
-            }
-
-            // Optional: validate IP allowlist
-            if ($this->config->isIpnCheckIpEnabled()) {
-                $ip = (string)($this->getRequest()->getClientIp() ?? '');
-                if ($ip === '' || !$this->ipAllowlistService->isAllowed($ip)) {
-                    return $this->badRequest($result, 'Invalid IP address: ' . $ip);
-                }
             }
 
             // Raw JSON body
@@ -65,11 +51,14 @@ class Index extends Action implements CsrfAwareActionInterface
                 return $this->badRequest($result, 'Invalid JSON payload.');
             }
 
-            // Validate signature, required fields, service_id etc.
-            $this->validator->validate($payload, $serviceId, $ipnKey);
+            // IP allowlist (optional), IPN version, required fields, signature, service_id
+            $ipn = $this->simPayFactory->create()->handleIpn(
+                $payload,
+                (string) $this->getRequest()->getServer('HTTP_USER_AGENT'),
+                $this->config->isIpnCheckIpEnabled() ? (string) $this->getRequest()->getClientIp() : null
+            );
 
-            // Dispatch event
-            $this->dispatcher->dispatch($payload);
+            $this->dispatcher->dispatch($ipn);
 
             $result->setHttpResponseCode(200);
             $result->setContents('OK');

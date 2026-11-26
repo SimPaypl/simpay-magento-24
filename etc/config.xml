@@ -9,6 +9,7 @@
                 <model>SimPayPaymentFacade</model>
                 <order_status>pending_payment</order_status>
                 <title>Pay with SimPay</title>
+                <auth_method>oauth</auth_method>
                 <can_use_checkout>1</can_use_checkout>
                 <payment_action>order</payment_action>
                 <can_order>1</can_order>

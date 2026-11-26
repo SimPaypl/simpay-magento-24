@@ -26,6 +26,7 @@ Moduł umożliwia:
 - Automatyczną zmianę statusów zamówień
 - Zwroty online z poziomu Credit Memo (refund API)
 - Opcjonalną walidację adresu IP notyfikacji
+- Połączenie ze SimPay przez OAuth („Połącz przez SimPay”) bez ręcznego kopiowania kluczy
 ---
 
 ## Przepływ płatności
@@ -62,6 +63,13 @@ php bin/magento setup:static-content:deploy
 php bin/magento cache:flush
 ```
 
+Moduł wymaga SDK [`simpay/ecommerce`](https://packagist.org/packages/simpay/ecommerce), które Composer instaluje automatycznie.
+Przy instalacji z archiwum ZIP do `app/code/SimPay/Magento` doinstaluj je ręcznie:
+
+```bash
+composer require simpay/ecommerce
+```
+
 ## Konfiguracja
 
 1. Przejdź do:
@@ -70,7 +78,16 @@ php bin/magento cache:flush
 
 2. Odszukaj sekcję **SimPay**
 
-3. Uzupełnij poniższe pola:
+3. Wybierz **Connection method**:
+
+   - **Połącz przez SimPay (zalecane)** – kliknij **Połącz przez SimPay**, zaloguj się do konta SimPay, udziel dostępu i wybierz usługę płatności.
+     Moduł automatycznie utworzy klucz API, ustawi adres IPN i wygeneruje klucz podpisu IPN. Wymaga panelu administracyjnego dostępnego po HTTPS.
+     Dane zapisywane są w zakresie (Default / Website / Store View), z którego rozpoczęto połączenie.
+   - **Wprowadź dane ręcznie** – uzupełnij pola z tabeli poniżej.
+
+   > Połączenie przez SimPay generuje nowy klucz podpisu IPN dla wybranej usługi – poprzedni klucz przestaje działać.
+
+4. Pozostałe pola:
 
 | Parametr | Opis |
 |-----------|------|

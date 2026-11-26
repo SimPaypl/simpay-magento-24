@@ -2,12 +2,13 @@
   "name": "simpay/magento24-payment",
   "description": "SimPay payment gateway for Magento 2",
   "type": "magento2-module",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "license": "apache-2.0",
   "require": {
     "php": ">=8.1",
     "ext-json": "*",
-    "magento/module-sales": "*"
+    "magento/module-sales": "*",
+    "simpay/ecommerce": "^1.1.1"
   },
   "autoload": {
     "files": [

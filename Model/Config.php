@@ -12,6 +12,16 @@ class Config
 {
     public const SUPPORTED_CURRENCY = 'PLN';
 
+    public const XML_PATH_SERVICE_ID = 'payment/' . ConfigProvider::CODE . '/service_id';
+    public const XML_PATH_API_PASSWORD = 'payment/' . ConfigProvider::CODE . '/api_password';
+    public const XML_PATH_IPN_SIGNATURE_KEY = 'payment/' . ConfigProvider::CODE . '/ipn_signature_key';
+    public const XML_PATH_AUTH_METHOD = 'payment/' . ConfigProvider::CODE . '/auth_method';
+    public const XML_PATH_OAUTH_ACCOUNT_EMAIL = 'payment/' . ConfigProvider::CODE . '/oauth_account_email';
+    public const XML_PATH_OAUTH_SERVICE_NAME = 'payment/' . ConfigProvider::CODE . '/oauth_service_name';
+
+    public const AUTH_METHOD_OAUTH = 'oauth';
+    public const AUTH_METHOD_MANUAL = 'manual';
+
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig
     ) {

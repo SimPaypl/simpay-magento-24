@@ -10,10 +10,11 @@ use Magento\Sales\Model\OrderFactory;
 use Magento\Sales\Api\OrderRepositoryInterface;
 use Psr\Log\LoggerInterface;
 use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
+use SimPay\SDK\AmountVerifier;
+use SimPay\SDK\PaymentStatus;
 
 class OrderService
 {
-    private const STATUS_PAID    = 'transaction_paid';
     private const STATUS_FAILED  = ['transaction_expired', 'transaction_failure', 'transaction_canceled'];
     private const REFUND_PENDING = ['refund_new', 'refund_pending'];
     private const REFUND_SUCCESS = ['refund_completed'];
@@ -47,7 +48,7 @@ class OrderService
         }
 
         // --- PAID ---
-        if ($status === self::STATUS_PAID) {
+        if ($status === PaymentStatus::TRANSACTION_PAID) {
             $transactionId = (string)($data['id'] ?? '');
             if ($transactionId === '') {
                 throw new \RuntimeException('Missing transaction id in IPN data.');
@@ -67,7 +68,7 @@ class OrderService
             $paidCurrency = (string)($data['amount']['final_currency'] ?? $order->getOrderCurrencyCode());
             $orderTotal   = (float)$order->getGrandTotal();
 
-            if ($paidAmount > 0 && $paidAmount + 0.00001 < $orderTotal) {
+            if ($paidAmount > 0 && !AmountVerifier::isAmountSufficient($orderTotal, $paidAmount)) {
                 $order->addCommentToStatusHistory(sprintf(
                     'SimPay: payment amount mismatch. Expected %.2f %s, got %.2f %s. Transaction: %s',
                     $orderTotal,
@@ -131,7 +132,7 @@ class OrderService
 
         // --- FAILED ---
         if (in_array($status, self::STATUS_FAILED)) {
-            $alreadyPaid = ((string)$payment->getAdditionalInformation('simpay_status') === self::STATUS_PAID);
+            $alreadyPaid = ((string)$payment->getAdditionalInformation('simpay_status') === PaymentStatus::TRANSACTION_PAID);
             if ($alreadyPaid) {
                 $this->logger->info('SimPay IPN: status ignored because order already marked failed', [
                     'increment_id' => $order->getIncrementId(),
