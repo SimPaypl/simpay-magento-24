@@ -21,6 +21,8 @@ class RefundRequestBuilder implements BuilderInterface
 
         $request = [
             'transaction_id' => $transactionId,
+            // refunds run in the admin - use the credentials of the order's store
+            'store_id' => (int) $paymentDO->getOrder()->getStoreId(),
         ];
 
         try {

@@ -36,6 +36,32 @@
                     <validate>required-entry</validate>
                 </field>
 
+                <field id="auth_method"
+                       translate="label comment"
+                       type="select"
+                       sortOrder="25"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label>Connection method</label>
+                    <source_model>SimPay\Magento\Model\Config\Source\AuthMethod</source_model>
+                    <comment>Connect with SimPay configures the API key, IPN URL and IPN signature key automatically.</comment>
+                </field>
+
+                <field id="oauth_connect"
+                       translate="label"
+                       type="note"
+                       sortOrder="26"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label>SimPay connection</label>
+                    <frontend_model>SimPay\Magento\Block\Adminhtml\System\Config\OAuthConnect</frontend_model>
+                    <depends>
+                        <field id="auth_method">oauth</field>
+                    </depends>
+                </field>
+
                 <field id="service_id"
                        translate="label comment"
                        type="text"
@@ -45,6 +71,9 @@
                        showInStore="1">
                     <label>Service ID</label>
                     <comment>Online payments → Services → Details → Service ID</comment>
+                    <depends>
+                        <field id="auth_method">manual</field>
+                    </depends>
                 </field>
 
                 <field id="api_password"
@@ -56,6 +85,9 @@
                        showInStore="1">
                     <label>API password</label>
                     <comment>Customer account → API → Details → Password / Bearer Token</comment>
+                    <depends>
+                        <field id="auth_method">manual</field>
+                    </depends>
                 </field>
 
                 <field id="ipn_signature_key"
@@ -67,6 +99,9 @@
                        showInStore="1">
                     <label>IPN signature key</label>
                     <comment>Online payments → Services → Details → Settings → IPN signature key</comment>
+                    <depends>
+                        <field id="auth_method">manual</field>
+                    </depends>
                 </field>
 
                 <field id="ipn_check_ip"
@@ -91,6 +126,9 @@
                     <label>Webhook URL</label>
                     <frontend_model>SimPay\Magento\Block\Adminhtml\System\Config\WebhookUrl</frontend_model>
                     <comment>Set this URL in SimPay panel as webhook/notification URL.</comment>
+                    <depends>
+                        <field id="auth_method">manual</field>
+                    </depends>
                 </field>
 
             </group>

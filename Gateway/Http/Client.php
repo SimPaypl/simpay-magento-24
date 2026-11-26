@@ -4,121 +4,67 @@ declare(strict_types=1);
 
 namespace SimPay\Magento\Gateway\Http;
 
-use Magento\Framework\HTTP\Client\Curl;
-use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Payment\Gateway\Http\ClientInterface;
 use Magento\Payment\Gateway\Http\TransferInterface;
 use Psr\Log\LoggerInterface;
 use SimPay\Magento\Model\Config;
+use SimPay\Magento\Model\SimPayFactory;
+use SimPay\SDK\Exception\ApiException;
+use SimPay\SDK\SimPayClient;
 
+/**
+ * SimPay API calls of the payment gateway commands (see di.xml):
+ * "transaction" creates a payment, "refund" creates a refund.
+ */
 class Client implements ClientInterface
 {
+    public const OPERATION_TRANSACTION = 'transaction';
+    public const OPERATION_REFUND = 'refund';
+
     public function __construct(
-        private readonly Curl $curl,
-        private readonly Json $json,
+        private readonly SimPayFactory $simPayFactory,
+        private readonly Config $config,
         private readonly LoggerInterface $logger,
-        private readonly Config $config
+        private readonly string $operation = self::OPERATION_TRANSACTION
     ) {
     }
 
     public function placeRequest(TransferInterface $transferObject): array
     {
-        // SimPay API request
-        $this->logger->debug('SimPay request start', [
-        ]);
+        $body = (array) $transferObject->getBody();
+        $storeId = isset($body['store_id']) ? (int) $body['store_id'] : null;
 
-        $bearerToken = (string) $this->config->getBearerToken();
-        if ($bearerToken === '') {
-            throw new \RuntimeException('SimPay is not configured (missing API password / bearer token).');
+        if ($this->config->getBearerToken($storeId) === '' || $this->config->getServiceId($storeId) === '') {
+            throw new \RuntimeException('SimPay is not configured (missing API password / Service ID).');
         }
 
-        $uri = (string) $transferObject->getUri();
-        if ($uri === '') {
-            throw new \RuntimeException('SimPay transfer URI is empty (TransferFactory misconfigured).');
-        }
-
-        $method = strtoupper((string) ($transferObject->getMethod() ?? 'POST'));
-
-        $body = $transferObject->getBody();
-        if (!is_array($body)) {
-            $body = [];
-        }
-
-        $headers = $transferObject->getHeaders();
-        if (!is_array($headers)) {
-            $headers = [];
-        }
-
-        // TransferFactory sets Accept/Content-Type etc.; Client adds auth
-        $headers = array_merge(
-            $headers,
-            [
-                'Accept' => 'application/json; charset=utf-8',
-                'Content-Type' => 'application/json; charset=utf-8',
-                'Authorization' => 'Bearer ' . $bearerToken,
-            ]
-        );
-
-        $timeout = (int) ($transferObject->getClientConfig()['timeout'] ?? 30);
+        $client = $this->simPayFactory->create($storeId)->client();
 
         try {
-            foreach ($headers as $name => $value) {
-                $this->curl->addHeader((string) $name, (string) $value);
-            }
-
-            $this->curl->setTimeout($timeout);
-
-            $payload = $body === [] ? '{}' : $this->json->serialize($body);
-
-            // MVP: we mainly need POST. Add GET support for future.
-            if ($method === 'GET') {
-                $this->curl->get($uri);
-            } else {
-                // Curl::post expects string|array; we send JSON string
-                $this->curl->post($uri, $payload);
-            }
-
-            $this->logger->debug('SimPay request payload', [
-                'method' => $method,
-                'uri' => $uri,
-                'payload' => $payload,
-            ]);
-
-            $status = (int) $this->curl->getStatus();
-            $raw = (string) $this->curl->getBody();
-
-            $decoded = [];
-            if ($raw !== '') {
-                try {
-                    $decoded = $this->json->unserialize($raw);
-                } catch (\Throwable $e) {
-                    $decoded = ['raw' => $raw];
-                }
-            }
-
-            if ($status >= 200 && $status < 300) {
-                return is_array($decoded) ? $decoded : ['data' => $decoded];
-            }
-
-            $this->logger->error('SimPay API error', [
-                'status' => $status,
-                'method' => $method,
-                'uri' => $uri,
-                'response' => $decoded,
-            ]);
-
-            throw new \RuntimeException(sprintf(
-                'SimPay API error: HTTP %d',
-                $status
-            ));
+            return $this->send($client, $body);
         } catch (\Throwable $e) {
+            $message = $e instanceof ApiException && $e->getApiMessage()
+                ? sprintf('HTTP %d: %s', $e->getHttpStatusCode(), $e->getApiMessage())
+                : $e->getMessage();
+
             $this->logger->critical('SimPay request failed', [
-                'method' => $method,
-                'uri' => $uri,
-                'exception' => $e->getMessage(),
+                'operation' => $this->operation,
+                'error' => $message,
             ]);
 
-            throw new \RuntimeException('SimPay request failed: ' . $e->getMessage(), 0, $e);
+            throw new \RuntimeException('SimPay request failed: ' . $message, 0, $e);
         }
+    }
+
+    private function send(SimPayClient $client, array $body): array
+    {
+        if ($this->operation === self::OPERATION_REFUND) {
+            return $client->createRefund(
+                (string) $body['transaction_id'],
+                isset($body['amount']) ? (float) $body['amount'] : null
+            );
+        }
+
+        return $client->createTransaction($body);
     }
 }
